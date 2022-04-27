@@ -1,0 +1,531 @@
+---
+title: "R Final Project"
+author: "blairseen"
+date: "March 16, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl) # to read excel  files
+library(tidyverse) # A collection of packages - makes it easy to  load core packages in a single command.
+library(RColorBrewer)#Color palettes
+library(caTools)#collection of basic utility functions
+library(party) #A computational toolbox for recursive partitioning.library(zoo) # for time series and ordered observations
+library(janitor)##for creating frequency tables
+library(caret) ## package for model training(Regression and classifications)
+library(e1071) #Functions for latent class analysis
+library(Boruta) #For relevant feature selection
+library(tree) # Decision Tree Algorithm For Classification and Regression
+library(rpart) #Recursive Partitioning and Tree Algorithm for classification and Regression
+library(rattle) #GUI for better tree plots
+library(rpart.plot)#Tree plotslibrary(lattice) #Graphics and visualizations
+library(Metrics) #Evaluation metrics for Machine learning
+library(kableExtra) #package for Creating complex tables
+library(ggplot2)# package for creating charts/visualizations
+library(ggpubr)# package for creating charts/visualizations
+library(randomForest) #Random forest Machine Learning Algorithm
+library(vtree)# Tree -like visualizations
+library(AICcmodavg) #to calculate the average of the AIC
+```
+
+#Importing the dataset into R and using row bind function to combine the columns
+```{r}
+getwd()
+thehot1 <- read.csv("H1.csv")
+thehot2 <- read.csv("H2.csv")
+glimpse(thehot1)
+glimpse(thehot2)
+
+hotel_combined <- rbind(thehot1,thehot2)
+view(hotel_combined)
+```
+
+
+#This line of code changes the data type from character to categorical variables
+```{r}
+hotel_combined$Agent <- as.factor(hotel_combined$Agent)
+hotel_combined$IsCanceled <- as.factor(hotel_combined$IsCanceled)
+hotel_combined$IsCanceled <- as.factor(hotel_combined$IsCanceled)
+hotel_combined$IsCanceled <- as.factor(hotel_combined$IsCanceled)
+hotel_combined$DistributionChannel <- as.factor(hotel_combined$DistributionChannel)  
+hotel_combined$ReservedRoomType <- as.factor(hotel_combined$ReservedRoomType)
+hotel_combined$DepositType <- as.factor(hotel_combined$DepositType)
+hotel_combined$CustomerType <- as.factor(hotel_combined$CustomerType)
+hotel_combined$Company <- as.factor(hotel_combined$Company)
+hotel_combined$AssignedRoomType <- as.factor(hotel_combined$AssignedRoomType)
+hotel_combined$ArrivalDateMonth <- as.factor(hotel_combined$ArrivalDateMonth)
+hotel_combined$IsCanceled <- as.factor(hotel_combined$IsCanceled)
+hotel_combined$IsRepeatedGuest <- as.factor(hotel_combined$IsRepeatedGuest)
+hotel_combined$MarketSegment <- as.factor(hotel_combined$MarketSegment)
+hotel_combined$Meal <- as.factor(hotel_combined$Meal)
+hotel_combined$Country <- as.factor(hotel_combined$Country)
+hotel_combined$ReservationStatus <- as.factor(hotel_combined$ReservationStatus)
+```
+
+#This line of code changes the data type from character to date
+```{r}
+hotel_combined$ReservationStatusDate <- as.Date(hotel_combined$ReservationStatusDate)
+hotel_combined$Country <- as.character(hotel_combined$Country)
+str(hotel_combined)
+```
+
+#This is to search for and replace the missing values in the dataset
+```{r}
+sum(is.na(hotel_combined))
+names(which(colSums(is.na(hotel_combined))>0))
+
+#Replace missing values with median
+hotel_combined$Children[is.na(hotel_combined$Children)] <- median(hotel_combined$Children, na.rm=TRUE)
+sum(is.na(hotel_combined))
+```
+
+
+######################DATA VISUALIZATION#######################
+#What is the rate of Canceled and not Cancelled?
+```{r}
+xtabs(~IsCanceled, data=hotel_combined)
+```
+
+
+#More visualization of the rate of Canceled and not Canceled?
+```{r}
+vtree(hotel_combined, "IsCanceled")
+```
+
+#How long does it take for someone to cancel their bookings from when it was first booked?
+```{r}
+boxplot(LeadTime~IsCanceled,ylab="LeadTime", xlab="IsCanceled",col="red", data=hotel_combined)
+```
+
+#How many guests that booked are repeated guests?
+```{r}
+table(hotel_combined$IsRepeatedGuest)
+```
+
+
+
+#How many repeated guests canceled their reservations and how many maintained their reservations?
+```{r}
+xtabs(~IsCanceled+IsRepeatedGuest, data=hotel_combined)
+```
+
+
+#What year had the most cancellations?
+```{r}
+barplot(xtabs(~IsCanceled + ArrivalDateYear, data=hotel_combined), col=c ("red", "purple"), legend=c("Not Canceled", "Canceled"), beside=T)
+```
+
+
+#What Month had the most cancellations/most bookings?
+```{r}
+barplot(xtabs(~IsCanceled + ArrivalDateMonth, data=hotel_combined), col=c ("green", "blue"), legend=c(" Not Canceled", "Canceled"),las=2, beside=T)
+```
+
+#What market segment had the most impact on bookings?
+```{r}
+barplot(xtabs(~ReservationStatus+ MarketSegment, data=hotel_combined), col=c ("green","black","blue"), legend=c("Canceled", "CheckOut","No Show"),las=2, beside=T)
+```
+
+
+#### 1. Which country has the most number of hotel bookings/expected visitor?
+```{r}
+countrytab = table(hotel_combined$Country) #create a frequency table for the country column
+countrydf = data.frame(countrytab) #create a dataframe for it
+head(countrydf)
+names(countrydf)[1] = 'Country' #Replacing the default column name in the dataframe with 'Country'
+countrydf_new <- countrydf[order(countrydf$Freq),] #ordering the data frame by frequency in ascending order (default order)
+countrydf_new
+countriestop <- tail(countrydf_new, n = 7) # creating a dataframe with the  7 countries that have the highest frequencies 
+countriestop
+dim(countrydf_new) #To confirm total number of countries
+sum(countriestop$Freq) #to confirm the number of bookings from the top 7 countries
+```
+#Visualize the result
+```{r}
+ggplot(countriestop, aes(x = Country, y = Freq)) +geom_bar(fill = "#0073C2FF", stat = "identity") + geom_text(aes(label = Freq), vjust = -0.3) +theme_pubclean()
+```
+ 
+
+
+
+#What is the average daily rate per year?
+```{r}
+tapply(hotel_combined$ADR, hotel_combined$ArrivalDateYear, summary)
+```
+
+#This graph is plotted to see what deposi type would most likely cancel
+```{r}
+barplot(xtabs(~IsCanceled+DepositType, data=hotel_combined), col=c ("orange","red"), legend=c("Not Canceled", "Canceled"), beside=T)
+```
+
+
+```{r}
+library(tidyverse)
+  summary(hotel_combined, na.rm=T)
+```
+
+
+#To drop the Agent and Company Column, this is because of the NULL values in the dataset
+```{r}
+library(tidyverse)
+combinednew<- subset(hotel_combined, select=-c(Agent,Company,ReservationStatusDate,ReservationStatus))
+#view(combinednew)
+```
+
+##################LOGISTICS REGRESSION#########################
+#Split the IsCanceled column into iss canceled and not canceled and assign them to a variable name
+```{r}
+hdata1 <- combinednew[which(combinednew$IsCanceled==0),]
+hdata2 <- combinednew[which(combinednew$IsCanceled==1),]
+```
+#This ensures that we have equal amount of canceled and not canceled in  the training dataset
+```{r}
+set.seed(123)
+training_set1 <- sample(1:nrow(hdata1),0.75*nrow(hdata1))
+training_set2 <- sample(1:nrow(hdata2),0.75*nrow(hdata2))
+#view(training_set1)
+#view(training_set2)
+```
+
+#Put in a dataframe
+```{r}
+train1 <- hdata1[training_set1,]
+train2 <- hdata2[training_set2,]
+#train1
+#train2
+```
+
+#Combine both dataframes
+```{r}
+traindata <- rbind(train1,train2)
+#view(traindata)
+
+```
+
+#Get the train data set 
+```{r}
+test1 <- hdata1[-training_set1,] #contains 25% of those 0
+test2 <- hdata2[-training_set2,]#contains 25% of those 1
+
+testdata <- rbind(test1, test2)
+#view(testdata)
+```
+
+#Feature Importance
+```{r}
+library(randomForest)
+
+
+forest_output <- randomForest(IsCanceled~., data=traindata)
+
+print(forest_output)
+
+str(traindata)
+```
+
+#Feature selection/importance
+```{r}
+random_df <- randomForest::importance(forest_output)
+random_df
+
+randomf_df <- data.frame(Variables=row.names(random_df), MeanDecreaseGini=random_df[,1])
+randomf_df <- random_df[order(randomf_df$MeanDecreaseGini, decreasing=TRUE),]
+randomf_df
+```
+
+#Logistics Regression using the first model
+```{r}
+logisticmodel <- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth,data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel)
+```
+
+
+#Prediction using the first logistics modell
+```{r}
+
+predict<- predict(logisticmodel, testdata)
+#view(predict)
+
+testdata$predict <- predict
+#view(testdata)
+```
+
+#Further logistics regression model
+```{r}
+logisticmodel1 <- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth:CustomerType, data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel1)
+```
+
+#This model seems to give the least AIC so its the best model
+```{r}
+logisticmodel2 <- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth:CustomerType+PreviousCancellations, data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel2)
+```
+
+#Prediction Using the second logistics model
+```{r}
+predict2<- predict(logisticmodel2, testdata)
+#view(predict2)
+
+testdata$predict2 <- predict2
+#view(testdata)
+```
+
+#More logistics model
+```{r}
+logisticmodel3 <- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth:CustomerType+AssignedRoomType, data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel3)
+```
+
+#More logistics model
+```{r}
+logisticmodel4 <- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth:CustomerType+ArrivalDateMonth:ArrivalDateWeekNumber, data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel4)
+```
+
+#More logitics model
+```{r}
+logisticmodel5<- glm(IsCanceled~DepositType+LeadTime+ADR+MarketSegment+TotalOfSpecialRequests+ArrivalDateDayOfMonth:CustomerType+ArrivalDateMonth:ArrivalDateWeekNumber+IsRepeatedGuest, data=traindata,family=binomial(link="logit"))
+
+summary(logisticmodel5)
+
+```
+
+
+#Compare the models using their AIC
+```{r}
+models<- list(logisticmodel1,logisticmodel2,logisticmodel3,logisticmodel4,logisticmodel5)
+model.names <- c('logisticmodel1', 'logisticmodel2','logisticmodel3','logisticmodel4','logisticmodel5')
+
+aictab(cand.set=models, modnames=model.names)
+```
+
+
+#Predict with the test data and get the confusion matrix to calculate the accuracy of your model
+```{r}
+testdata$predict<- predict(logisticmodel2,testdata) #Applying the logistics Model to predict booking cancellation using the test data and adding it to the data set in a new column -"Predict"
+
+testdata$Class <- ifelse(testdata$predict>0, "1", "0") #assigning level "0" for not canceled and "1" for canceled booking to a new column -"Class" in the test data.
+
+#View(testdata)
+
+testdata$Class <- as.factor(testdata$Class) #Converting the class variable from character into a categorical variable
+
+confusionMatrix(testdata$Class, testdata$IsCanceled) #Using a confusion matrix to examine the accuracy of the model.
+```
+
+#Decision tree
+#creating a new dataset by removing the country column because it exceeds the number of values accepted for the categorical variable 
+```{r}
+library(tidyverse)
+treenew<- subset(hotel_combined, select=-c(Agent,Company,ReservationStatusDate,ReservationStatus,Country))
+view(treenew)
+```
+
+```{r}
+colnames(treenew)
+```
+
+#This splits the Is canceled column into canceled and not canceled
+```{r}
+thedata1<- treenew[which(treenew$IsCanceled==0),]
+thedata2<- treenew[which(treenew$IsCanceled==1),]
+```
+
+#This ensures we have equal % of canceled and not canceled data
+```{r}
+set.seed(1234)
+set_train1<- sample(1:nrow(thedata1),0.75*nrow(thedata1))
+set_train2<- sample(1:nrow(thedata2),0.75*nrow(thedata2))
+#view(set_train1)
+#view(set_train2)
+```
+
+#Put in a dataframe
+```{r}
+tree_train1 <- thedata1[set_train1,]
+tree_train2 <- thedata2[set_train2,]
+#tree_train1
+#tree_train2
+```
+
+#Combine both dataframes
+```{r}
+treetrain <- rbind(tree_train1,tree_train2)
+#view(traindata)
+
+```
+
+#Get the train data set 
+```{r}
+treetest1 <- thedata1[-set_train1,] #contains 25% of those 0
+treetest2 <- thedata2[-set_train2,]#contains 25% of those 1
+
+treetest <- rbind(treetest1, treetest2)
+#view(testdata)
+```
+#Fancy tree plot
+```{r}
+tree_model1 <- rpart(IsCanceled~., data=treetrain)
+summary(tree_model1)
+
+fancyRpartPlot(tree_model1)
+
+```
+
+
+##Pick the one with the least cross validation model and use it to prune the tree. We prune the tree using the least cross validated error and the least complexity parameter
+```{r}
+printcp(tree_model1)
+
+prunetree <- prune(tree_model1,+tree_model1$cptable[which.min(tree_model1$cptable[, "xerror"]), "CP"])
+prunetree
+
+printcp(prunetree)
+fancyRpartPlot(prunetree, uniform=TRUE, main='Pruned Classification')
+```
+
+#Predict with the tree model and test data
+```{r}
+treepred=predict(tree_model1, treetest, type="class")
+#view(treepred)
+```
+#Predict with the pruned tree and the test data
+```{r}
+prunepred=predict(prunetree, treetest, type="class")
+#view(prunepred)
+```
+
+```{r}
+library(e1071)
+library(caret)
+```
+#Calculate the accuracy of your model
+```{r}
+confusionMatrix(treepred, treetest$IsCanceled)
+```
+
+#Calculate the accuracy of your pruned tree model
+```{r}
+confusionMatrix(prunepred, treetest$IsCanceled)
+```
+
+#Get the accuracy using the confusion matrix
+```{r}
+accuracy <- (17514+6656)/(17514+4400+1278+6656) #accuracy compares the accuracy scores of the actual tree and that of the pruned one. Go with high accuracy
+print(accuracy)
+```
+
+
+
+#Random Forest
+
+#Plot the model error rate at each number of trees
+```{r}
+plot(forest_output)
+```
+#create a random forest model with default parameters
+```{r}
+rmodel1 <- randomForest(IsCanceled~.,data=traindata, importance=TRUE)
+rmodel1
+randomForest::importance(rmodel1)
+```
+#Also plot the variable importance
+```{r}
+varImpPlot(forest_output, col="red")
+```
+#Fine tune the random forest model
+```{r}
+rmodel2 <- randomForest(IsCanceled~.,data=traindata, ntree=500, mtry=3,importance=TRUE) #importance=true means calculate the importance
+rmodel2
+```
+
+#More random model
+```{r}
+rmodel3 <- randomForest(IsCanceled~.,data=traindata, ntree=260, mtry=5,importance=TRUE) #importance=true means calculate the importance
+rmodel3 
+```
+
+#More random model
+```{r}
+rmodel4 <- randomForest(IsCanceled~.,data=traindata, ntree=700, mtry=3,min.node.size=9,importance=TRUE) #importance=true means calculate the importance
+rmodel4
+```
+
+#Predict the train data
+```{r}
+predict.test <- predict(rmodel1,testdata,type="class")
+view(predict.test)
+```
+#Check classification accuracy
+```{r}
+table(predict.train, testdata$IsCanceled)
+```
+#Check Importance of Variables
+```{r}
+randomForest::importance(rmodel1)
+varImpPlot(rmodel1, col="blue")
+```
+
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+

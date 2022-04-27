@@ -1,0 +1,284 @@
+---
+title: "Rshiny_app Notebook"
+output: html_notebook
+---
+
+```{r}
+library(shiny)
+library(data.table)
+library(randomForest)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+t_model <- readRDS("r_model1.rds")
+```
+
+```{r}
+ui <- pageWithSidebar(
+  
+  # Page header
+  headerPanel('Hotel Cancellation Predictor'),
+  
+  # Input values
+  sidebarPanel(
+    #HTML("<h3>Input parameters</h3>"),
+    tags$label(h3('Input parameters')),
+    numericInput("LeadTime", 
+                 label = "Lead Time", 
+                 value = ""),
+    numericInput("ArrivalDateYear", 
+                 label = "Arrival Date Year", 
+                 value = ""),
+    selectInput("ArrivalDateMonth", 
+                 label = "ArrivalDateMonth", 
+                choices=c(January="January",February="February",March="March",April="April",May="May",
+                              June="June",July="July",August="August",September="September",
+                              October="October",November="November",December="December")),
+    
+    numericInput("ArrivalDateWeekNumber", 
+                 label = "Arrival Date Week Number", 
+                 value = ""),
+    numericInput("ArrivalDateDayOfMonth", 
+                 label = "Arrival Date Day Of Month", 
+                 value = ""),
+    numericInput("StaysInWeekendNights", 
+                 label = "Stay in weekend nights", 
+                 value = ""),
+    numericInput("StaysInWeekNights", 
+                 label = "Stay in week nights", 
+                 value = ""),
+    numericInput("Adults", 
+                 label = "Adults", 
+                 value = ""),
+    numericInput("Children", 
+                 label = "Children", 
+                 value = ""),
+    numericInput("Babies", 
+                 label = "Babies", 
+                 value = ""),
+    selectInput("Meal", 
+                 label = "Meal", 
+                choices=c(BB="BB",FB="FB",HB="HB",SC="SC",Undefined="Undefined")),
+    textInput("Country", 
+                 label = "Country", 
+                 value = ""),
+    selectInput("MarketSegment", 
+                 label = "Market Segment", 
+                choices=c(Aviation="Aviation",Complementary="Complementary",Corporate="Corporate",
+                          Direct="Direct",
+                          Groups="Groups",Offline_TA_TO_="Offline TA/TO",
+                          Online_TA="Online TA",Undefined="Undefined")),    
+    selectInput("DistributionChannel", 
+                 label = "Distribution Channel", 
+                choices=c(Corporate="Corporate",Direct="Direct",GDS="GDS",TA_TO="TA/TO",
+                          Undefined="Undefined")),
+    selectInput("IsRepeatedGuest", 
+                 label = "Is Repeated Guest", 
+                choices=c(No="0",Yes="1")),
+     numericInput("PreviousCancellations", 
+                 label = "Previous Cancellations", 
+                 value = ""),
+   
+    numericInput("PreviousBookingsNotCanceled", 
+                 label = "Previous Bookings Not Canceled", 
+                 value = ""),
+    selectInput("ReservedRoomType", 
+                 label = "Reserved Room Type", 
+                choices=c(A="A",B="B",C="C",D="D",E="E",F="F",G="G",H="H",L="L",P="P")),
+     selectInput("AssignedRoomType", 
+                 label = "Assigned Room Type", 
+                choices=c(A="A",B="B",C="C",D="D",E="E",F="F",G="G",H="H",I="I",K="K",L="L",P="P")),
+    numericInput("BookingChanges", 
+                 label = "Booking Changes", 
+                 value = ""),
+     selectInput("DepositType", 
+                 label = "Deposit Type", 
+                choices=c(No_deposit="No deposit",Non_refund="Non refund",Refundable="Refundable")),
+    numericInput("DaysInWaitingList", 
+                 label = "Days In Waiting List", 
+                 value = ""),
+    selectInput("CustomerType", 
+                 label = "Customer Type", 
+                choices=c(contract="Contract",Group="Group",Transient="Transient",
+                          Transient_Party="Transient-Party")),
+    numericInput("ADR", 
+                 label = "ADR", 
+                 value = ""),
+     numericInput("RequiredCarParkingSpaces", 
+                 label = "Required Car Parking Spaces", 
+                 value = ""),
+    
+    numericInput("TotalOfSpecialRequests", 
+                 label = "Total Of Special Requests", 
+                 value = ""),
+    
+    
+    
+    actionButton("submitbutton", "Submit", 
+                 class = "btn btn-primary")
+  ),
+  
+  mainPanel(
+    tags$label(h3('IsCanceled')), # Status/Output Text Box
+    verbatimTextOutput('contents'),
+    tableOutput('tabledata') # Prediction results table
+    
+  )
+)
+
+
+```
+
+```{r}
+####################################
+# Server                           #
+####################################
+
+server<- function(input, output, session) {
+  
+  # Input Data
+  datasetInput <- reactive({  
+    
+    thedf <- data.frame(
+      Name = c("LeadTime",
+                "ArrivalDateYear",
+                "ArrivalDateMonth",
+                "ArrivalDateWeekNumber",
+                 "ArrivalDateDayOfMonth", 
+                 "StaysInWeekendNights",
+                "StaysInWeekNights",
+                "Adults",
+                "Children",
+                "Babies", 
+                 "Meal",  
+                 "Country", 
+                  "MarketSegment", 
+               "DistributionChannel", 
+              "IsRepeatedGuest", 
+             "PreviousCancellations", 
+             "PreviousBookingsNotCanceled", 
+             "ReservedRoomType", 
+              "AssignedRoomType", 
+             "BookingChanges", 
+             "DepositType", 
+            "DaysInWaitingList", 
+            "CustomerType",
+             "ADR", 
+            "RequiredCarParkingSpaces",
+             "TotalOfSpecialRequests"),
+      
+      Value = as.character(c(input$LeadTime,
+                             input$ArrivalDateYear,
+                             input$ArrivalDateMonth,
+                             input$ArrivalDateWeekNumber,
+                             input$ArrivalDateDayOfMonth, 
+                             input$StaysInWeekendNights,
+                             input$StaysInWeekNights,
+                             input$Adults,
+                             input$Children,
+                             input$Babies, 
+                             input$Meal, 
+                             input$Country, 
+                             input$MarketSegment, 
+                             input$DistributionChannel, 
+                             input$IsRepeatedGuest, 
+                             input$PreviousCancellations, 
+                             input$PreviousBookingsNotCanceled, 
+                             input$ReservedRoomType, 
+                             input$AssignedRoomType, 
+                             input$BookingChanges, 
+                             input$DepositType, 
+                             input$DaysInWaitingList,
+                             input$CustomerType,
+                             input$ADR, 
+                             input$RequiredCarParkingSpaces,
+                             input$TotalOfSpecialRequests)),
+      stringsAsFactors = FALSE)
+    
+    C_Bookings <- "IsCanceled"
+   thedf <- rbind(thedf,C_Bookings)
+    input <- transpose(thedf)
+    write.table(input,"input.csv", sep=",", quote = FALSE, row.names = FALSE, col.names = FALSE)
+    
+    hot_test <- read.csv(paste("input", ".csv", sep=""), header = TRUE)
+
+   
+  
+                                       
+                                       
+    Output <- data.frame(Prediction=predict(t_model,hot_test), round(predict(t_model,hot_test,type="prob"), 3))
+    print(Output)
+    
+  })
+  
+   # Status/Output Text Box
+  output$contents <- renderPrint({
+    if (input$submitbutton>0) { 
+      isolate("Calculation complete.") 
+    } else {
+      return("Server is ready for calculation.")
+    }
+  })
+  
+  # Prediction results table
+  output$tabledata <- renderTable({
+    if (input$submitbutton>0) { 
+      isolate(datasetInput()) 
+    } 
+  })
+  
+}
+####################################
+# Create the shiny app             #
+####################################
+shinyApp(ui = ui, server = server) 
+```
+
+
+
+
+```{r}
+view(hotel_test)
+#levels(trainbinded$CustomerType)
+```
+
+```{r}
+library(tidyverse)
+view(trainbinded)
+
+ view(hbookings_df)
+#str(trainbinded$AssignedRoomType)
+
+```
+
+```{r}
+hotel_test$CustomerType <- factor(hotel_test$CustomerType, 
+                                      levels=c('Contract','Group','Transient','Transient-Party'))
+                                      
+    hotel_test$DepositType  <- factor(hotel_test$DepositType, 
+                                      levels =c('No deposit','Non refund','Refundable')) 
+                                                  
+    hotel_test$ReservedRoomType  <- factor(hotel_test$ReservedRoomType, 
+                                       levels =  c('A','B','C','D','E','F','G','H','L','P'))
+                                                   
+    hotel_test$DistributionChannel <- factor(hotel_test$DistributionChannel, 
+                                          levels = c('Corporate','Direct','GDS','TA/TO')) 
+                                          
+    hotel_test$IsRepeatedGuest<- factor(hotel_test$IsRepeatedGuest, levels = c('0','1')) 
+                                        
+    hotel_test$MarketSegment <- factor(hotel_test$MarketSegment, 
+                            levels=c('Aviation','Complementary','Corporate','Direct','Groups','Offline                            TA/TO','Online TA','Undefined'))
+    
+    hotel_test$Meal <- factor(hotel_test$Meal, levels = c('BB','FB','HB','SC','Undefined'))
+    hotel_test$AssignedRoomType  <- factor(hotel_test$AssignedRoomType, 
+                                       levels =  c('A','B','C','D','E','F','G','H','I','K','L','P'))
+   
+                                       
+                                       
+                                       
+```
+

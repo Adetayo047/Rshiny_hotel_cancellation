@@ -1,0 +1,320 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse) # A collection of packages - makes it easy to  load core packages in a single command.
+library(RColorBrewer)#Color palettes
+library(caTools)#collection of basic utility functions
+library(party) #A computational toolbox for recursive partitioning.library(zoo) # for time series and ordered observations
+library(janitor)##for creating frequency tables
+library(caret) ## package for model training(Regression and classifications)
+library(e1071) #Functions for latent class analysis
+library(Boruta) #For relevant feature selection
+library(tree) # Decision Tree Algorithm For Classification and Regression
+library(rpart) #Recursive Partitioning and Tree Algorithm for classification and Regression
+library(rattle) #GUI for better tree plots
+library(rpart.plot)#Tree plotslibrary(lattice) #Graphics and visualizations
+library(Metrics) #Evaluation metrics for Machine learning
+library(kableExtra) #package for Creating complex tables
+library(ggplot2)# package for creating charts/visualizations
+library(ggpubr)# package for creating charts/visualizations
+library(randomForest) #Random forest Machine Learning Algorithm
+library(vtree)# Tree -like visualizations
+library(AICcmodavg) #to calculate the average of the AIC
+```
+#Importing the datasets
+```{r}
+hot_1<- read_csv("H1.csv")
+hot_2 <- read_csv("H2.csv")
+```
+
+
+#The data sets have the same number of columns and column names, they can therefore be joined along the row.
+```{r}
+#Using r-bind to join "hotel1" and "hotel2" and giving it a new variable name "hotel"
+
+hotel_binded <- rbind(hot_1, hot_2)
+```
+
+#Confirming the data types of the variables based on documentation provided
+```{r}
+str(hotel_binded)
+```
+
+#Some variables are appearing as character when they should be categorical.
+```{r}
+#Converting the variables with wrong data types into the correct data type
+hotel_binded$Agent <- as.factor(hotel_binded$Agent)
+hotel_binded$IsCanceled <- as.factor(hotel_binded$IsCanceled)
+hotel_binded$DistributionChannel <- as.factor(hotel_binded$DistributionChannel)  
+hotel_binded$ReservedRoomType <- as.factor(hotel_binded$ReservedRoomType)
+hotel_binded$DepositType <- as.factor(hotel_binded$DepositType)
+hotel_binded$CustomerType <- as.factor(hotel_binded$CustomerType)
+hotel_binded$Company <- as.factor(hotel_binded$Company)
+hotel_binded$AssignedRoomType <- as.factor(hotel_binded$AssignedRoomType)
+hotel_binded$ArrivalDateMonth <- as.factor(hotel_binded$ArrivalDateMonth)
+hotel_binded$IsCanceled <- as.factor(hotel_binded$IsCanceled)
+hotel_binded$IsRepeatedGuest <- as.factor(hotel_binded$IsRepeatedGuest)
+hotel_binded$MarketSegment <- as.factor(hotel_binded$MarketSegment)
+hotel_binded$Meal <- as.factor(hotel_binded$Meal)
+hotel_binded$ReservationStatus <- as.factor(hotel_binded$ReservationStatus)
+hotel_binded$ReservationStatusDate <- as.Date(hotel_binded$ReservationStatusDate)
+hotel_binded$Country <- as.character(hotel_binded$Country)
+
+#Checking to confirm that changes have been effected
+str(hotel_binded)
+```
+
+#Checking for missing values
+```{r}
+sum(is.na(hotel_binded))
+```
+
+#There are 4 missing values in the data set in general. 
+
+#Checking to confirm which columns have missing values
+```{r}
+names(which(colSums(is.na(hotel_binded)) > 0))
+```
+
+#Missing values are only found in the 'children' column.
+```{r}
+#Dealing with the missing values by replacing them with the median.
+
+hotel_binded$Children[is.na(hotel_binded$Children)] <- median(hotel_binded$Children, na.rm=TRUE)
+
+#Confirming that missing values have been dealt with
+sum(is.na(hotel_binded))
+```
+######################DATA VISUALIZATION#######################
+#What is the rate of Canceled and not Cancelled?
+```{r}
+xtabs(~IsCanceled, data=hotel_binded)
+```
+
+
+#More visualization of the rate of Canceled and not Canceled?
+```{r}
+vtree(hotel_binded, "IsCanceled")
+```
+
+#How long does it take for someone to cancel their bookings from when it was first booked?
+```{r}
+boxplot(LeadTime~IsCanceled,ylab="LeadTime", xlab="IsCanceled",col="red", data=hotel_binded)
+```
+
+#How many guests that booked are repeated guests?
+```{r}
+table(hotel_combined$IsRepeatedGuest)
+```
+
+
+
+#How many repeated guests canceled their reservations and how many maintained their reservations?
+```{r}
+xtabs(~IsCanceled+IsRepeatedGuest, data=hotel_binded)
+```
+
+#What year had the most cancellations?
+```{r}
+barplot(xtabs(~IsCanceled + ArrivalDateYear, data=hotel_binded), col=c ("red", "purple"), legend=c("Not Canceled", "Canceled"), beside=T)
+```
+
+
+#What Month had the most cancellations/most bookings?
+```{r}
+barplot(xtabs(~IsCanceled + ArrivalDateMonth, data=hotel_binded), col=c ("green", "blue"), legend=c(" Not Canceled", "Canceled"),las=2, beside=T)
+```
+
+#What market segment had the most impact on bookings?
+```{r}
+barplot(xtabs(~ReservationStatus+ MarketSegment, data=hotel_binded), col=c ("green","black","blue"), legend=c("Canceled", "CheckOut","No Show"),las=2, beside=T)
+```
+
+
+#### 1. Which country has the most number of hotel bookings/expected visitor?
+```{r}
+countrytabb= table(hotel_binded$Country) #create a frequency table for the country column
+countrydff = data.frame(countrytabb) #create a dataframe for it
+head(countrydff)
+names(countrydff)[1] = 'Country' #Replacing the default column name in the dataframe with 'Country'
+countrydff_new <- countrydff[order(countrydff$Freq),] #ordering the data frame by frequency in ascending order (default order)
+countrydff_new
+countriestopp <- tail(countrydff_new, n = 7) # creating a dataframe with the  7 countries that have the highest frequencies 
+countriestopp
+dim(countrydff_new) #To confirm total number of countries
+sum(countriestopp$Freq) #to confirm the number of bookings from the top 7 countries
+```
+#What is the average daily rate per year?
+```{r}
+tapply(hotel_binded$ADR, hotel_binded$ArrivalDateYear, summary)
+```
+
+#This graph is plotted to see what deposit type would most likely cancel
+```{r}
+barplot(xtabs(~IsCanceled+DepositType, data=hotel_binded), col=c ("orange","red"), legend=c("Not Canceled", "Canceled"), beside=T)
+```
+
+
+```{r}
+library(tidyverse)
+  summary(hotel_binded, na.rm=T)
+```
+
+
+#To drop the Agent and Company Column, this is because of the NULL values in the dataset
+```{r}
+library(tidyverse)
+bindednew<- subset(hotel_binded, select=-c(Agent,Company,ReservationStatusDate,ReservationStatus,ReservedRoomType,Meal,Adults,
+                                           DistributionChannel,Children,PreviousBookingsNotCanceled,
+                                           DaysInWaitingList,IsRepeatedGuest,Babies))
+view(bindednew)
+```
+
+#Split the IsCanceled column into iss canceled and not canceled and assign them to a variable name
+```{r}
+h_data1 <- bindednew[which(bindednew$IsCanceled==0),]
+h_data2 <- bindednew[which(bindednew$IsCanceled==1),]
+```
+#This ensures that we have equal amount of canceled and not canceled in  the training dataset
+```{r}
+set.seed(123)
+train_part1 <- sample(1:nrow(h_data1),0.75*nrow(h_data1))
+train_part2 <- sample(1:nrow(h_data2),0.75*nrow(h_data2))
+#view(training_set1)
+#view(training_set2)
+```
+
+#Put in a dataframe
+```{r}
+trainpart1 <- h_data1[train_part1,]
+trainpart2 <- h_data2[train_part2,]
+#trainpart1
+#trainpart2
+```
+
+#Combine both dataframes
+```{r}
+trainbinded <- rbind(trainpart1,trainpart2)
+#view(trainbinded)
+
+```
+
+#Get the train data set 
+```{r}
+testpart1 <- h_data1[-train_part1,] #contains 25% of those 0
+testpart2 <- h_data2[-train_part2,]#contains 25% of those 1
+
+testbinded <- rbind(testpart1, testpart2)
+#view(testdata)
+```
+
+#Feature Importance
+```{r}
+library(randomForest)
+
+
+forest_results <- randomForest(IsCanceled~., data=trainbinded)
+
+print(forest_results)
+
+#str(trainbinded)
+```
+
+#Feature selection/importance
+```{r}
+random_dfs <- randomForest::importance(forest_results)
+random_dfs
+
+randomf_dfs <- data.frame(Variables=row.names(random_dfs), MeanDecreaseGini=random_dfs[,1])
+randomf_dfs <- random_dfs[order(randomf_dfs$MeanDecreaseGini, decreasing=TRUE),]
+randomf_dfs
+```
+
+######################## RANDOM FOREST ALGORITHM ############################
+```{r}
+library(randomForest)
+r_model1 <- randomForest(IsCanceled~.,data=trainbinded, importance=TRUE)
+r_model1
+
+#randomForest::importance(r_model1) 
+
+```
+
+```{r}
+colnames(trainbinded)
+```
+```{r}
+unique(trainbinded$ArrivalDateYear)
+unique(trainbinded$ArrivalDateMonth)
+unique(trainbinded$ArrivalDateWeekNumber)
+unique(trainbinded$ArrivalDateDayOfMonth)
+unique(trainbinded$StaysInWeekendNights)
+unique(trainbinded$StaysInWeekNights)
+unique(trainbinded$Country)
+unique(trainbinded$MarketSegment)
+unique(trainbinded$PreviousCancellations)
+unique(trainbinded$AssignedRoomType)
+unique(trainbinded$BookingChanges)
+unique(trainbinded$DepositType)
+unique(trainbinded$CustomerType)
+unique(trainbinded$ADR)
+unique(trainbinded$RequiredCarParkingSpaces)
+unique(trainbinded$TotalOfSpecialRequests)
+```
+```{r}
+str(trainbinded)
+summary(trainbinded)
+```
+
+
+#####Accuracy
+```{r}
+accuracy_score <- (52484+26783)/(52484+3890+26783+6385) 
+print(accuracy_score)
+```
+####Precision
+```{r}
+precision <- (26783)/(26783+3890)
+print(precision)
+```
+
+####Recall
+```{r}
+recall <- (26783)/(26783+6385)
+print(recall)
+```
+####F1 Score
+```{r}
+f1_Score <- (2*((0.87*0.80)/(0.87+0.80)))
+print(f1_Score)
+```
+
+#Predict the train data
+```{r}
+library(tidyverse)
+prediction.test <- predict(r_model1,testbinded,type="class")
+view(prediction.test)
+```
+
+#Check classification accuracy
+```{r}
+testbinded$prediction.test <- prediction.test
+view(testbinded)
+```
+
+```{r}
+view(trainbinded)
+```
+
+```{r}
+confusionMatrix(prediction.test, testbinded$IsCanceled) #Using a confusion matrix to examine the accuracy of the model.
+```
+
+```{r}
+# Save model to RDS file
+saveRDS(r_model1, "r_model1.rds")
+```
+

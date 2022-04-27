@@ -1,0 +1,2 @@
+IsCanceled,LeadTime,ArrivalDateYear,ArrivalDateMonth,ArrivalDateWeekNumber,ArrivalDateDayOfMonth,StaysInWeekendNights,StaysInWeekNights,Country,MarketSegment,PreviousCancellations,AssignedRoomType,BookingChanges,DepositType,CustomerType,ADR,RequiredCarParkingSpaces,TotalOfSpecialRequests
+IsCanceled,737,2017,November,53,37,19,47,BEL,Offline TA/TO,2,A,19,Refundable,Contract,5400,8,5
